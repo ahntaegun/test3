@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>수습사원 매출 시뮬레이터 (Supabase 실시간 동기화)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase JS Client CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-brand-600 text-white rounded-xl shadow-md">
+                    <i class="fa-solid fa-chart-line text-lg"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">수습사원 매출 시뮬레이터</h1>
+                        <span class="bg-emerald-50 text-emerald-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-200 hidden sm:inline-block">Supabase LIVE</span>
+                    </div>
+                    <p class="text-xs text-slate-500 hidden sm:block">Supabase DB로 모든 참여자가 함께 보고 실시간으로 편집하는 시뮬레이션</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <!-- Sync Status Badge -->
+                <div id="sync-status-badge" class="px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-lg flex items-center gap-1.5 border border-emerald-200 shadow-sm transition-all duration-300">
+                    <span class="relative flex h-2 w-2">
+                        <span id="sync-status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span id="sync-status-dot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span id="sync-status-text" class="hidden sm:inline">Supabase 연결 준비 중...</span>
+                </div>
+                <button onclick="openShareModal()" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition duration-200 flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-share-nodes"></i> <span class="hidden sm:inline">공유 및 백업</span>
+                </button>
+                <button onclick="saveToLocalStorage()" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition duration-200 flex items-center gap-1.5 border border-slate-300">
+                    <i class="fa-solid fa-floppy-disk"></i> <span class="hidden sm:inline">로컬 저장</span>
+                </button>
+                <button onclick="openGuideModal()" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition duration-200 flex items-center gap-1.5 border border-slate-300">
+                    <i class="fa-solid fa-book"></i> <span class="hidden sm:inline">가이드</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+
+        <!-- 1. Global Controls Section -->
+        <section class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <h2 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-brand-600"></i> 시뮬레이션 변수 설정 (Supabase DB 실시간 연동)
+                </h2>
+                <span class="text-xs text-slate-400">옵션 변경 시 DB에 즉시 반영되며 접속 중인 사용자에게 실시간 전파됩니다.</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Option 1: M Month Budget Ratio -->
+                <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80 flex flex-col justify-between">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">
+                            1. M (매핑당월) 예산 비중
+                        </label>
+                        <p class="text-[11px] text-slate-500 mb-2">매핑 당월 소진할 월예산의 비중</p>
+                        <select id="m-ratio-select" onchange="updateGlobalSettings()" class="w-full bg-white border border-slate-300 rounded-lg text-xs font-semibold p-2 focus:ring-2 focus:ring-brand-500 outline-none">
+                            <option value="10">10% 소진</option>
+                            <option value="20">20% 소진</option>
+                            <option value="30">30% 소진</option>
+                            <option value="40">40% 소진</option>
+                            <option value="50">50% 소진</option>
+                            <option value="60">60% 소진</option>
+                            <option value="70">70% 소진</option>
+                            <option value="80">80% 소진</option>
+                            <option value="90">90% 소진</option>
+                            <option value="100" selected>100% (전액 소진)</option>
+                        </select>
+                    </div>
+                    <button onclick="unifyMRatio()" class="mt-3 w-full py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold transition">
+                        <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> M당월 예산 비중 일괄 통일
+                    </button>
+                </div>
+
+                <!-- Option 2: Default New Account Budget -->
+                <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80 flex flex-col justify-between">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">
+                            2. 신규 계정 기본 월 예산
+                        </label>
+                        <p class="text-[11px] text-slate-500 mb-2">새로 생성될 신규계정 초기 예산</p>
+                        <select id="default-budget-select" onchange="updateGlobalSettings()" class="w-full bg-white border border-slate-300 rounded-lg text-xs font-semibold p-2 focus:ring-2 focus:ring-brand-500 outline-none">
+                            <option value="30">30 만원</option>
+                            <option value="50" selected>50 만원</option>
+                            <option value="70">70 만원</option>
+                            <option value="100">100 만원</option>
+                            <option value="120">120 만원</option>
+                            <option value="150">150 만원</option>
+                        </select>
+                    </div>
+                    <button onclick="unifyNewAccountBudget()" class="mt-3 w-full py-1.5 px-2 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 rounded-lg text-[11px] font-bold transition">
+                        <i class="fa-solid fa-equals mr-1"></i> 신규계정 예산 일괄 통일
+                    </button>
+                </div>
+
+                <!-- Option 3: Decay Rate for New Accounts -->
+                <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs font-bold text-slate-700">3. 신규 이탈/감소 요율</label>
+                            <span id="decay-rate-value" class="text-xs font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">10% 감소</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mb-2">M+1, M+2월 신규광고주 예산 감소율</p>
+                        <input type="range" id="decay-rate-range" min="0" max="50" step="5" value="10" oninput="updateGlobalSettings()" class="w-full accent-rose-600 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="text-[10px] text-slate-400 mt-2 flex justify-between">
+                        <span>0% (유지)</span>
+                        <span>25%</span>
+                        <span>50% (급감)</span>
+                    </div>
+                </div>
+
+                <!-- Option 4: Upselling Rate for Existing Accounts -->
+                <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs font-bold text-slate-700">4. 기존 계정 업셀링 요율</label>
+                            <span id="upsell-rate-value" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">10% 성장</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mb-2">M+1, M+2월 기존광고주 예산 증액률</p>
+                        <input type="range" id="upsell-rate-range" min="0" max="50" step="5" value="10" oninput="updateGlobalSettings()" class="w-full accent-emerald-600 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="text-[10px] text-slate-400 mt-2 flex justify-between">
+                        <span>0% (유지)</span>
+                        <span>25%</span>
+                        <span>50% (상승)</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. Target KPI Cards -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Total Revenue Target Card -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-500">수습 3개월 누적 예상 매출액</p>
+                        <h3 id="total-revenue-display" class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">0 만원</h3>
+                    </div>
+                    <div class="p-3 bg-brand-50 text-brand-600 rounded-xl">
+                        <i class="fa-solid fa-won-sign text-xl"></i>
+                    </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span class="text-slate-500">목표 매출 (가이드): <strong class="text-slate-800">1,500 만원</strong></span>
+                    <span id="revenue-pass-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold">계산 중</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2 mt-2">
+                    <div id="revenue-progress-bar" class="bg-brand-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Total Account Count Card -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-500">총 라이브 계정 수</p>
+                        <h3 id="total-accounts-display" class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">0 개</h3>
+                    </div>
+                    <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <i class="fa-solid fa-cubes text-xl"></i>
+                    </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span class="text-slate-500">목표 개수 (가이드): <strong class="text-slate-800">15 개</strong></span>
+                    <span id="accounts-pass-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold">계산 중</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2 mt-2">
+                    <div id="accounts-progress-bar" class="bg-indigo-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Media Balance Card -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-center mb-2">
+                    <p class="text-xs font-semibold text-slate-500">주력매체별 5개 미션 달성도</p>
+                    <span class="text-[11px] text-slate-400">네이버 / 버티컬 / 오픈마켓</span>
+                </div>
+                <div class="space-y-2 mt-3">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="font-medium text-slate-700">네이버 (목표 5개)</span>
+                            <span id="naver-count-text" class="font-bold text-slate-800">0/5</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-1.5">
+                            <div id="naver-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="font-medium text-slate-700">버티컬 (에이블리/지그재그/오늘의집)</span>
+                            <span id="vertical-count-text" class="font-bold text-slate-800">0/5</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-1.5">
+                            <div id="vertical-bar" class="bg-purple-500 h-1.5 rounded-full transition-all duration-300" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="font-medium text-slate-700">오픈마켓 (G마켓/11번가)</span>
+                            <span id="openmarket-count-text" class="font-bold text-slate-800">0/5</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-1.5">
+                            <div id="openmarket-bar" class="bg-amber-500 h-1.5 rounded-full transition-all duration-300" style="width:0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. Charts Section -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Monthly Sales Trend Chart -->
+            <div class="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900">월별 매출 성장 추이 시뮬레이션</h3>
+                        <p class="text-xs text-slate-500">수습 1개월차 ~ 3개월차 월간 예상 매출</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                        <span class="flex items-center gap-1 text-slate-600"><span class="w-2.5 h-2.5 rounded-full bg-brand-600 inline-block"></span> 월 매출</span>
+                    </div>
+                </div>
+                <div class="h-64">
+                    <canvas id="monthlyTrendChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Media Breakdown Chart -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <div class="mb-4">
+                    <h3 class="text-sm font-bold text-slate-900">매체별 누적 매출 비중</h3>
+                    <p class="text-xs text-slate-500">3개 매체 카테고리별 기여도</p>
+                </div>
+                <div class="h-64 flex items-center justify-center">
+                    <canvas id="mediaPieChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Account Management & Table Section -->
+        <section class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-brand-600"></i> 매핑 계정 관리 및 실시간 편집
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">시작 시점(매핑월)에 따른 M, M+1, M+2 상대 매출이 자동 산출됩니다.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="requestResetToDefault()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition border border-slate-200">
+                        <i class="fa-solid fa-rotate-left mr-1"></i> 기본 15개 가이드 초기화
+                    </button>
+                    <button onclick="openAddAccountModal()" class="px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-plus"></i> 계정 추가하기
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-xl">
+                <table class="w-full text-xs text-left border-collapse">
+                    <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                        <tr>
+                            <th class="py-3 px-3 text-center w-12">No</th>
+                            <th class="py-3 px-3">구분</th>
+                            <th class="py-3 px-3">주력 매체</th>
+                            <th class="py-3 px-3 text-center">매핑 시작</th>
+                            <th class="py-3 px-3 text-right">초기 월예산</th>
+                            <th class="py-3 px-3 text-right bg-blue-50/50 text-blue-900">M (매핑당월)</th>
+                            <th class="py-3 px-3 text-right bg-blue-50/30 text-blue-900">M+1 (익월)</th>
+                            <th class="py-3 px-3 text-right bg-blue-50/20 text-blue-900">M+2 (익익월)</th>
+                            <th class="py-3 px-3 text-right font-bold text-slate-900">수습기간 총매출</th>
+                            <th class="py-3 px-3 text-center w-20">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="account-table-body" class="divide-y divide-slate-100">
+                        <!-- Dynamic Account Rows -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 5. Evaluation Guide Matrix Section -->
+        <section class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+            <div class="border-b border-slate-100 pb-3">
+                <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-list text-indigo-600"></i> 수습사원 평가가이드 시나리오 (12주차)
+                </h3>
+                <p class="text-xs text-slate-500">회사 평가 가이드에 명시된 3개월 주차별 육성 로드맵입니다.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <!-- Month 1 Roadmap -->
+                <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-2">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-200">
+                        <span class="font-bold text-slate-800 text-sm">1개월차 (1~4주)</span>
+                        <span class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-semibold">기초 교육 및 IB 부여</span>
+                    </div>
+                    <ul class="space-y-1.5 text-slate-600">
+                        <li><strong>1~2주차:</strong> 교육 이후 최종 합격 결정.</li>
+                        <li><strong>3주차:</strong> 콜 영업 실무 시작 / 실전영업 후 피드백.</li>
+                        <li><strong>4주차:</strong> 메일 영업 병행 시작 / 첫 IB 목표 부여.</li>
+                    </ul>
+                </div>
+
+                <!-- Month 2 Roadmap -->
+                <div class="border border-brand-200 rounded-xl p-4 bg-brand-50/30 space-y-2">
+                    <div class="flex justify-between items-center pb-2 border-b border-brand-200">
+                        <span class="font-bold text-brand-900 text-sm">2개월차 (5~8주)</span>
+                        <span class="bg-brand-100 text-brand-800 px-2 py-0.5 rounded text-[10px] font-semibold">영업 집중 구간</span>
+                    </div>
+                    <ul class="space-y-1.5 text-slate-600">
+                        <li><strong>5~8주차:</strong> 신규 생성 건수 2개월차 달성 컨셉.</li>
+                        <li><strong>주차별 목표:</strong> 매주 신규 매핑 3개 / 매체 확장 1건 목표 부여.</li>
+                    </ul>
+                </div>
+
+                <!-- Month 3 Roadmap -->
+                <div class="border border-emerald-200 rounded-xl p-4 bg-emerald-50/30 space-y-2">
+                    <div class="flex justify-between items-center pb-2 border-b border-emerald-200">
+                        <span class="font-bold text-emerald-900 text-sm">3개월차 (9~12주)</span>
+                        <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-semibold">스킬 점검 및 완결</span>
+                    </div>
+                    <ul class="space-y-1.5 text-slate-600">
+                        <li><strong>9주차:</strong> 광고 세팅/관리 및 광고주 커뮤니케이션.</li>
+                        <li><strong>10주차:</strong> 데이터 분석, 대안 제시 및 매체 확장.</li>
+                        <li><strong>11~12주차:</strong> 업셀링 스킬 점검 및 최종 통과 보완.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal 1: Add/Edit Account Modal -->
+    <div id="account-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 id="modal-title" class="text-base font-bold text-slate-900">계정 추가</h3>
+                <button onclick="closeAccountModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="account-form" onsubmit="handleAccountSubmit(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="edit-account-id" value="">
+                
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">계정 구분</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="flex items-center justify-center gap-2 p-2.5 border rounded-xl cursor-pointer hover:bg-slate-50" id="type-new-label">
+                            <input type="radio" name="accountType" value="신규" checked class="accent-brand-600">
+                            <span class="font-bold text-brand-600">신규 광고주</span>
+                        </label>
+                        <label class="flex items-center justify-center gap-2 p-2.5 border rounded-xl cursor-pointer hover:bg-slate-50" id="type-exist-label">
+                            <input type="radio" name="accountType" value="기존" class="accent-indigo-600">
+                            <span class="font-bold text-indigo-600">기존 광고주</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">주력 매체 카테고리</label>
+                    <select id="modal-media-select" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="네이버">네이버</option>
+                        <option value="버티컬">버티컬 (에이블리/지그재그/오늘의집)</option>
+                        <option value="오픈마켓">오픈마켓 (지마켓/11번가)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">매핑 시작 시점</label>
+                    <select id="modal-start-month-select" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="1">1개월차 매핑 (1~4주차)</option>
+                        <option value="2" selected>2개월차 매핑 (5~8주차)</option>
+                        <option value="3">3개월차 매핑 (9~12주차)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">초기 월 예산 (만원)</label>
+                    <select id="modal-budget-select" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="30">30 만원</option>
+                        <option value="50" selected>50 만원</option>
+                        <option value="70">70 만원</option>
+                        <option value="90">90 만원</option>
+                        <option value="100">100 만원</option>
+                        <option value="120">120 만원</option>
+                        <option value="150">150 만원</option>
+                    </select>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeAccountModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium">취소</button>
+                    <button type="submit" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold">저장하기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 2: Share & Data Restore Modal -->
+    <div id="share-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4 relative">
+            <button onclick="closeShareModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <div class="border-b border-slate-200 pb-3">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-share-nodes text-indigo-600"></i> 시뮬레이션 공유 및 백업
+                </h3>
+                <p class="text-xs text-slate-500">Supabase 데이터베이스에 자동 동기화되며 코드나 파일로도 백업할 수 있습니다.</p>
+            </div>
+
+            <div class="space-y-4 text-xs">
+                <!-- URL Link Share -->
+                <div id="url-share-section" class="space-y-1.5">
+                    <label class="font-bold text-slate-700 block">1. 접속 URL (실시간 공유)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="share-url-input" readonly class="flex-grow bg-slate-50 border border-slate-300 text-slate-600 text-xs rounded-xl p-2.5 outline-none font-mono">
+                        <button onclick="copyShareLinkOnly()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shrink-0 transition">
+                            <i class="fa-solid fa-copy mr-1"></i> 링크 복사
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Share Code (Base64) -->
+                <div class="space-y-1.5">
+                    <label class="font-bold text-slate-700 block">2. 설정 백업 코드</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="share-code-input" readonly class="flex-grow bg-slate-50 border border-slate-300 text-slate-600 text-xs rounded-xl p-2.5 outline-none font-mono text-[11px]" placeholder="설정 코드가 생성됩니다">
+                        <button onclick="copyShareCode()" class="px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl shrink-0 transition">
+                            <i class="fa-solid fa-code mr-1"></i> 코드 복사
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Import Share Code -->
+                <div class="space-y-1.5 pt-2 border-t border-slate-100">
+                    <label class="font-bold text-slate-700 block">3. 백업 코드 불러오기</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="import-code-input" class="flex-grow bg-white border border-slate-300 text-slate-800 text-xs rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 outline-none font-mono text-[11px]" placeholder="전달받은 설정 코드를 붙여넣으세요">
+                        <button onclick="loadFromShareCode()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shrink-0 transition">
+                            <i class="fa-solid fa-download mr-1"></i> 데이터 적용
+                        </button>
+                    </div>
+                </div>
+
+                <!-- File Export / Import -->
+                <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                        <span class="font-bold text-slate-700 block">4. 파일 백업 & 복원</span>
+                        <span class="text-[11px] text-slate-400">JSON 파일 내보내기/불러오기</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="exportJsonFile()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition border border-slate-200">
+                            <i class="fa-solid fa-file-export mr-1"></i> 내보내기
+                        </button>
+                        <label class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition border border-slate-200 cursor-pointer">
+                            <i class="fa-solid fa-file-import mr-1"></i> 불러오기
+                            <input type="file" id="json-file-input" accept=".json" onchange="importJsonFile(event)" class="hidden">
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-2 flex justify-end">
+                <button onclick="closeShareModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-medium">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Guide Modal -->
+    <div id="guide-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-base font-bold text-slate-900">수습사원 평가 가이드 개요</h3>
+                <button onclick="closeGuideModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="space-y-3 text-xs text-slate-600 leading-relaxed">
+                <p><strong>1. 수습 평가기간:</strong> 3개월 (2주 교육기간 포함)</p>
+                <p><strong>2. 평가 가이드 목표:</strong></p>
+                <ul class="list-disc pl-5 space-y-1">
+                    <li>신규 생성 15개 계정 라이브 (네이버 5개, 버티컬 5개, 오픈마켓 5개)</li>
+                    <li>수습기간 총 누적 매출 1,500만원 이상 달성</li>
+                </ul>
+                <p><strong>3. 매출 시뮬레이션 산출 규칙:</strong></p>
+                <ul class="list-disc pl-5 space-y-1">
+                    <li><strong>M (매핑당월):</strong> 계정이 추가된 월의 소진액 (설정한 M 예산 비중 % 반영)</li>
+                    <li><strong>M+1 (익월):</strong> 신규 계정은 감소요율, 기존 계정은 업셀링 요율 적용</li>
+                    <li><strong>M+2 (익익월):</strong> 수습기간(3개월) 범위를 벗어나는 경우 공란(-) 처리</li>
+                </ul>
+            </div>
+            <div class="pt-2 flex justify-end">
+                <button onclick="closeGuideModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-medium">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 4: Custom Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100 space-y-4">
+            <div class="flex items-center gap-3">
+                <div id="confirm-icon-bg" class="p-3 bg-amber-100 text-amber-600 rounded-xl shrink-0">
+                    <i id="confirm-icon" class="fa-solid fa-triangle-exclamation text-xl"></i>
+                </div>
+                <div>
+                    <h3 id="confirm-title" class="text-base font-bold text-slate-900">확인</h3>
+                    <p id="confirm-message" class="text-xs text-slate-500 mt-0.5">정말 진행하시겠습니까?</p>
+                </div>
+            </div>
+            <div class="pt-2 flex justify-end gap-2 text-xs">
+                <button onclick="closeConfirmModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition">취소</button>
+                <button id="confirm-ok-btn" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition shadow-sm">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <script>
+        // Supabase Initialization Credentials
+        const SUPABASE_URL = "https://yztvxeqnqoujomaxihmi.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_u4GMFqsb1ub4nazpvKcvaA_QQ8X4zJJ";
+
+        let supabaseClient = null;
+        let isRemoteUpdate = false;
+        const RECORD_ID = 'shared_default';
+        let pollingInterval = null;
+
+        // Initialize Supabase Client
+        if (window.supabase) {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+
+        // Global State & Settings
+        let globalSettings = {
+            mRatio: 100,         // % of initial budget spent in M
+            defaultBudget: 50,  // Default initial budget for new accounts
+            decayRate: 10,      // Decay rate % for new accounts in M+1, M+2
+            upsellRate: 10      // Upsell rate % for existing accounts in M+1, M+2
+        };
+        window.globalSettings = globalSettings;
+
+        // Default Accounts Guide Data
+        const DEFAULT_ACCOUNTS = [
+            { id: 1, media: '네이버', type: '신규', startMonth: 1, initialBudget: 50 },
+            { id: 2, media: '네이버', type: '신규', startMonth: 2, initialBudget: 50 },
+            { id: 3, media: '네이버', type: '신규', startMonth: 2, initialBudget: 70 },
+            { id: 4, media: '네이버', type: '신규', startMonth: 2, initialBudget: 50 },
+            { id: 5, media: '네이버', type: '신규', startMonth: 3, initialBudget: 100 },
+            { id: 6, media: '버티컬', type: '신규', startMonth: 1, initialBudget: 50 },
+            { id: 7, media: '버티컬', type: '신규', startMonth: 2, initialBudget: 50 },
+            { id: 8, media: '버티컬', type: '신규', startMonth: 2, initialBudget: 90 },
+            { id: 9, media: '버티컬', type: '신규', startMonth: 2, initialBudget: 30 },
+            { id: 10, media: '버티컬', type: '신규', startMonth: 3, initialBudget: 50 },
+            { id: 11, media: '오픈마켓', type: '신규', startMonth: 1, initialBudget: 50 },
+            { id: 12, media: '오픈마켓', type: '신규', startMonth: 2, initialBudget: 50 },
+            { id: 13, media: '오픈마켓', type: '기존', startMonth: 1, initialBudget: 120 },
+            { id: 14, media: '오픈마켓', type: '신규', startMonth: 2, initialBudget: 50 },
+            { id: 15, media: '오픈마켓', type: '신규', startMonth: 3, initialBudget: 50 }
+        ];
+
+        let accounts = JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
+        window.accounts = accounts;
+        let nextAccountId = 16;
+
+        let monthlyChartInstance = null;
+        let mediaPieChartInstance = null;
+
+        // Connect and Sync with Supabase DB
+        async function initSupabaseSync() {
+            if (!supabaseClient) {
+                updateSyncBadge('offline', '로컬 독립 세션');
+                return;
+            }
+
+            try {
+                updateSyncBadge('connecting', 'Supabase DB 연동 중...');
+
+                // Fetch existing data row from Supabase table 'simulations'
+                const { data, error } = await supabaseClient
+                    .from('simulations')
+                    .select('*')
+                    .eq('id', RECORD_ID)
+                    .maybeSingle();
+
+                if (error && error.code !== 'PGRST116') {
+                    console.warn("Supabase fetch warning:", error.message);
+                }
+
+                if (data && data.accounts && data.global_settings) {
+                    window.accounts = data.accounts;
+                    window.globalSettings = data.global_settings;
+                    updateGlobalSettingsUI();
+                    recalculateAndRender();
+                    const lastUpdated = data.updated_at ? new Date(data.updated_at).toLocaleTimeString('ko-KR') : '방금 전';
+                    updateSyncBadge('online', `Supabase 연결 완료 (${lastUpdated})`);
+                } else {
+                    // First time initialization in Supabase DB
+                    await pushToSupabase();
+                }
+
+                // Try Realtime WebSocket subscription, fallback to HTTP polling if blocked in sandbox
+                try {
+                    const channel = supabaseClient
+                        .channel('public:simulations')
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'simulations', filter: `id=eq.${RECORD_ID}` }, (payload) => {
+                            if (payload.new && payload.new.accounts && payload.new.global_settings) {
+                                isRemoteUpdate = true;
+                                window.accounts = payload.new.accounts;
+                                window.globalSettings = payload.new.global_settings;
+                                updateGlobalSettingsUI();
+                                recalculateAndRender();
+                                isRemoteUpdate = false;
+                                const timeStr = payload.new.updated_at ? new Date(payload.new.updated_at).toLocaleTimeString('ko-KR') : '방금 전';
+                                updateSyncBadge('online', `Supabase 실시간 동기화 완료 (${timeStr})`);
+                            }
+                        });
+
+                    channel.subscribe((status, err) => {
+                        if (err || status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
+                            console.warn("Supabase Realtime WebSocket restricted in iframe. Switching to HTTP Polling.");
+                            startHttpPolling();
+                        }
+                    });
+                } catch (wsErr) {
+                    console.warn("WebSocket not allowed in Canvas preview. Falling back to HTTP Polling.", wsErr);
+                    startHttpPolling();
+                }
+
+            } catch (err) {
+                console.error("Supabase sync initialization error:", err);
+                startHttpPolling();
+                updateSyncBadge('online', 'Supabase REST 연동 완료');
+            }
+        }
+
+        // Fallback HTTP Polling for environments where WebSockets are restricted (Canvas iFrame)
+        function startHttpPolling() {
+            if (pollingInterval) return;
+            const lastUpdated = new Date().toLocaleTimeString('ko-KR');
+            updateSyncBadge('online', `Supabase REST 연동 완료 (${lastUpdated})`);
+
+            pollingInterval = setInterval(async () => {
+                if (isRemoteUpdate) return;
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('simulations')
+                        .select('*')
+                        .eq('id', RECORD_ID)
+                        .maybeSingle();
+
+                    if (!error && data && data.accounts && data.global_settings) {
+                        const currentData = JSON.stringify({ a: window.accounts, s: window.globalSettings });
+                        const remoteData = JSON.stringify({ a: data.accounts, s: data.global_settings });
+
+                        if (currentData !== remoteData) {
+                            isRemoteUpdate = true;
+                            window.accounts = data.accounts;
+                            window.globalSettings = data.global_settings;
+                            updateGlobalSettingsUI();
+                            recalculateAndRender();
+                            isRemoteUpdate = false;
+                            const timeStr = data.updated_at ? new Date(data.updated_at).toLocaleTimeString('ko-KR') : '방금 전';
+                            updateSyncBadge('online', `Supabase 동기화 (${timeStr})`);
+                        }
+                    }
+                } catch (e) {
+                    console.warn("HTTP Polling note:", e);
+                }
+            }, 4000);
+        }
+
+        // Push state changes to Supabase DB
+        async function pushToSupabase() {
+            if (isRemoteUpdate) return;
+
+            if (!supabaseClient) {
+                updateSyncBadge('offline', '로컬 백업 저장됨');
+                return;
+            }
+
+            try {
+                updateSyncBadge('connecting', 'Supabase 저장 중...');
+                const payload = {
+                    id: RECORD_ID,
+                    accounts: window.accounts,
+                    global_settings: window.globalSettings,
+                    updated_at: new Date().toISOString()
+                };
+
+                const { error } = await supabaseClient
+                    .from('simulations')
+                    .upsert(payload, { onConflict: 'id' });
+
+                if (error) {
+                    console.warn("Supabase upsert note:", error.message);
+                    // Fallback to local storage backup if table is not provisioned
+                    saveToLocalStorage(false);
+                    updateSyncBadge('online', 'Supabase 백업 연결됨');
+                } else {
+                    updateSyncBadge('online', 'Supabase DB 실시간 저장 완료');
+                }
+            } catch (err) {
+                console.error("Supabase push error:", err);
+                updateSyncBadge('offline', '로컬 독립 모드');
+            }
+        }
+
+        function updateSyncBadge(status, text) {
+            const badge = document.getElementById('sync-status-badge');
+            const textElem = document.getElementById('sync-status-text');
+            const dotElem = document.getElementById('sync-status-dot');
+            const pingElem = document.getElementById('sync-status-ping');
+
+            if (!badge || !textElem) return;
+
+            textElem.textContent = text;
+            if (status === 'online') {
+                badge.className = "px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-lg flex items-center gap-1.5 border border-emerald-200 shadow-sm";
+                if (dotElem) dotElem.className = "relative inline-flex rounded-full h-2 w-2 bg-emerald-500";
+                if (pingElem) pingElem.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+            } else if (status === 'connecting') {
+                badge.className = "px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg flex items-center gap-1.5 border border-amber-200 shadow-sm";
+                if (dotElem) dotElem.className = "relative inline-flex rounded-full h-2 w-2 bg-amber-500";
+                if (pingElem) pingElem.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75";
+            } else {
+                badge.className = "px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg flex items-center gap-1.5 border border-slate-200 shadow-sm";
+                if (dotElem) dotElem.className = "relative inline-flex rounded-full h-2 w-2 bg-slate-400";
+                if (pingElem) pingElem.className = "hidden";
+            }
+        }
+
+        function calculateAccountRevenues(acc) {
+            const mRatio = globalSettings.mRatio / 100;
+            const decay = (100 - globalSettings.decayRate) / 100;
+            const upsell = (100 + globalSettings.upsellRate) / 100;
+            const multiplier = acc.type === '신규' ? decay : upsell;
+
+            const initial = acc.initialBudget;
+            const mVal = Math.round(initial * mRatio);
+            const m1Val = Math.round(initial * multiplier);
+            const m2Val = Math.round(m1Val * multiplier);
+
+            let revM1 = 0, revM2 = 0, revM3 = 0;
+            let displayM = '-', displayM1 = '-', displayM2 = '-';
+
+            if (acc.startMonth === 1) {
+                revM1 = mVal;
+                revM2 = m1Val;
+                revM3 = m2Val;
+                displayM = mVal;
+                displayM1 = m1Val;
+                displayM2 = m2Val;
+            } else if (acc.startMonth === 2) {
+                revM1 = 0;
+                revM2 = mVal;
+                revM3 = m1Val;
+                displayM = mVal;
+                displayM1 = m1Val;
+                displayM2 = '-';
+            } else if (acc.startMonth === 3) {
+                revM1 = 0;
+                revM2 = 0;
+                revM3 = mVal;
+                displayM = mVal;
+                displayM1 = '-';
+                displayM2 = '-';
+            }
+
+            const totalInProbation = revM1 + revM2 + revM3;
+
+            return {
+                revM1, revM2, revM3,
+                displayM, displayM1, displayM2,
+                totalInProbation
+            };
+        }
+
+        function updateGlobalSettingsUI() {
+            document.getElementById('m-ratio-select').value = globalSettings.mRatio;
+            document.getElementById('default-budget-select').value = globalSettings.defaultBudget;
+            document.getElementById('decay-rate-range').value = globalSettings.decayRate;
+            document.getElementById('decay-rate-value').textContent = `${globalSettings.decayRate}% 감소`;
+            document.getElementById('upsell-rate-range').value = globalSettings.upsellRate;
+            document.getElementById('upsell-rate-value').textContent = `${globalSettings.upsellRate}% 성장`;
+        }
+
+        function updateGlobalSettings() {
+            globalSettings.mRatio = parseInt(document.getElementById('m-ratio-select').value) || 100;
+            globalSettings.defaultBudget = parseInt(document.getElementById('default-budget-select').value) || 50;
+            globalSettings.decayRate = parseInt(document.getElementById('decay-rate-range').value) || 0;
+            globalSettings.upsellRate = parseInt(document.getElementById('upsell-rate-range').value) || 0;
+
+            document.getElementById('decay-rate-value').textContent = `${globalSettings.decayRate}% 감소`;
+            document.getElementById('upsell-rate-value').textContent = `${globalSettings.upsellRate}% 성장`;
+
+            recalculateAndRender();
+            triggerCloudSync();
+        }
+
+        function unifyMRatio() {
+            updateGlobalSettings();
+            showNotification(`모든 계정에 M (매핑당월) 예산 비중 ${globalSettings.mRatio}%가 적용되었습니다.`);
+        }
+
+        function unifyNewAccountBudget() {
+            const defaultB = parseInt(document.getElementById('default-budget-select').value) || 50;
+            let count = 0;
+            accounts.forEach(acc => {
+                if (acc.type === '신규') {
+                    acc.initialBudget = defaultB;
+                    count++;
+                }
+            });
+            recalculateAndRender();
+            triggerCloudSync();
+            showNotification(`총 ${count}개 신규 계정의 초기 월예산이 ${defaultB}만원으로 통일되었습니다.`);
+        }
+
+        function recalculateAndRender() {
+            let totalM1 = 0, totalM2 = 0, totalM3 = 0;
+            let mediaCounts = { '네이버': 0, '버티컬': 0, '오픈마켓': 0 };
+            let mediaRevenues = { '네이버': 0, '버티컬': 0, '오픈마켓': 0 };
+
+            const tableBody = document.getElementById('account-table-body');
+            tableBody.innerHTML = '';
+
+            accounts.forEach((acc, idx) => {
+                const revs = calculateAccountRevenues(acc);
+
+                totalM1 += revs.revM1;
+                totalM2 += revs.revM2;
+                totalM3 += revs.revM3;
+
+                if (mediaCounts[acc.media] !== undefined) {
+                    mediaCounts[acc.media]++;
+                    mediaRevenues[acc.media] += revs.totalInProbation;
+                }
+
+                // Render Table Row
+                const row = document.createElement('tr');
+                row.className = "hover:bg-slate-50/80 transition-colors";
+                row.innerHTML = `
+                    <td class="py-2.5 px-3 text-center text-slate-400 font-medium">${idx + 1}</td>
+                    <td class="py-2.5 px-3">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-bold ${acc.type === '신규' ? 'bg-brand-50 text-brand-700 border border-brand-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}">
+                            ${acc.type}
+                        </span>
+                    </td>
+                    <td class="py-2.5 px-3 font-semibold text-slate-800">${acc.media}</td>
+                    <td class="py-2.5 px-3 text-center font-medium text-slate-600">${acc.startMonth}개월차</td>
+                    <td class="py-2.5 px-3 text-right font-mono font-semibold text-slate-700">${acc.initialBudget.toLocaleString()} 만원</td>
+                    <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-700 bg-blue-50/40">${typeof revs.displayM === 'number' ? revs.displayM.toLocaleString() + ' 만원' : '-'}</td>
+                    <td class="py-2.5 px-3 text-right font-mono font-medium text-slate-700 bg-blue-50/20">${typeof revs.displayM1 === 'number' ? revs.displayM1.toLocaleString() + ' 만원' : '-'}</td>
+                    <td class="py-2.5 px-3 text-right font-mono font-medium text-slate-700 bg-blue-50/10">${typeof revs.displayM2 === 'number' ? revs.displayM2.toLocaleString() + ' 만원' : '-'}</td>
+                    <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900">${revs.totalInProbation.toLocaleString()} 만원</td>
+                    <td class="py-2.5 px-3 text-center">
+                        <div class="flex items-center justify-center gap-1.5">
+                            <button onclick="openEditAccountModal(${acc.id})" class="p-1 text-slate-400 hover:text-brand-600 transition" title="수정"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="requestDeleteAccount(${acc.id})" class="p-1 text-slate-400 hover:text-rose-600 transition" title="삭제"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            const grandTotal = totalM1 + totalM2 + totalM3;
+            const totalAccounts = accounts.length;
+
+            // Update KPI Displays
+            document.getElementById('total-revenue-display').textContent = `${grandTotal.toLocaleString()} 만원`;
+            document.getElementById('total-accounts-display').textContent = `${totalAccounts} 개`;
+
+            // Revenue Target Status (Goal: 1500)
+            const revRatio = Math.min(Math.round((grandTotal / 1500) * 100), 100);
+            document.getElementById('revenue-progress-bar').style.width = `${revRatio}%`;
+            const revBadge = document.getElementById('revenue-pass-badge');
+            if (grandTotal >= 1500) {
+                revBadge.textContent = '목표 달성 (PASS)';
+                revBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200';
+            } else {
+                revBadge.textContent = `달성률 ${revRatio}%`;
+                revBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200';
+            }
+
+            // Account Target Status (Goal: 15)
+            const accRatio = Math.min(Math.round((totalAccounts / 15) * 100), 100);
+            document.getElementById('accounts-progress-bar').style.width = `${accRatio}%`;
+            const accBadge = document.getElementById('accounts-pass-badge');
+            if (totalAccounts >= 15) {
+                accBadge.textContent = '개수 충족 (PASS)';
+                accBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200';
+            } else {
+                accBadge.textContent = `${totalAccounts} / 15개`;
+                accBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200';
+            }
+
+            // Media balances
+            updateMediaBar('naver', mediaCounts['네이버']);
+            updateMediaBar('vertical', mediaCounts['버티컬']);
+            updateMediaBar('openmarket', mediaCounts['오픈마켓']);
+
+            // Update Charts
+            renderMonthlyChart(totalM1, totalM2, totalM3);
+            renderMediaPieChart(mediaRevenues);
+        }
+
+        function updateMediaBar(key, count) {
+            const countText = document.getElementById(`${key}-count-text`);
+            const bar = document.getElementById(`${key}-bar`);
+            countText.textContent = `${count}/5개`;
+            const pct = Math.min((count / 5) * 100, 100);
+            bar.style.width = `${pct}%`;
+        }
+
+        function renderMonthlyChart(m1, m2, m3) {
+            const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
+            if (monthlyChartInstance) {
+                monthlyChartInstance.destroy();
+            }
+
+            monthlyChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['1개월차', '2개월차', '3개월차'],
+                    datasets: [{
+                        label: '월 예상 매출액 (만원)',
+                        data: [m1, m2, m3],
+                        backgroundColor: ['#60a5fa', '#3b82f6', '#1d4ed8'],
+                        borderRadius: 8,
+                        barThickness: 36
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` 예상 매출: ${context.parsed.y.toLocaleString()} 만원`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                callback: function(value) { return value.toLocaleString() + ' 만원'; },
+                                font: { size: 11 }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 12, weight: 'bold' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderMediaPieChart(mediaRevenues) {
+            const ctx = document.getElementById('mediaPieChart').getContext('2d');
+            if (mediaPieChartInstance) {
+                mediaPieChartInstance.destroy();
+            }
+
+            mediaPieChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['네이버', '버티컬', '오픈마켓'],
+                    datasets: [{
+                        data: [mediaRevenues['네이버'], mediaRevenues['버티컬'], mediaRevenues['오픈마켓']],
+                        backgroundColor: ['#10b981', '#a855f7', '#f59e0b'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { font: { size: 11 }, boxWidth: 12, padding: 15 }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.label}: ${context.parsed.toLocaleString()} 만원`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        function openAddAccountModal() {
+            document.getElementById('modal-title').textContent = '새 매핑 계정 추가';
+            document.getElementById('edit-account-id').value = '';
+            document.getElementById('modal-media-select').value = '네이버';
+            document.getElementById('modal-start-month-select').value = '2';
+            document.getElementById('modal-budget-select').value = globalSettings.defaultBudget;
+            document.getElementById('account-modal').classList.remove('hidden');
+        }
+
+        function openEditAccountModal(id) {
+            const acc = accounts.find(a => a.id === id);
+            if (!acc) return;
+
+            document.getElementById('modal-title').textContent = '계정 정보 수정';
+            document.getElementById('edit-account-id').value = acc.id;
+            
+            const typeRadios = document.getElementsByName('accountType');
+            typeRadios.forEach(r => {
+                r.checked = (r.value === acc.type);
+            });
+
+            document.getElementById('modal-media-select').value = acc.media;
+            document.getElementById('modal-start-month-select').value = acc.startMonth;
+            document.getElementById('modal-budget-select').value = acc.initialBudget;
+
+            document.getElementById('account-modal').classList.remove('hidden');
+        }
+
+        function closeAccountModal() {
+            document.getElementById('account-modal').classList.add('hidden');
+        }
+
+        function handleAccountSubmit(e) {
+            e.preventDefault();
+            const editId = document.getElementById('edit-account-id').value;
+            const typeVal = Array.from(document.getElementsByName('accountType')).find(r => r.checked)?.value || '신규';
+            const mediaVal = document.getElementById('modal-media-select').value;
+            const startMonthVal = parseInt(document.getElementById('modal-start-month-select').value) || 1;
+            const budgetVal = parseInt(document.getElementById('modal-budget-select').value) || 50;
+
+            if (editId) {
+                const acc = accounts.find(a => a.id === parseInt(editId));
+                if (acc) {
+                    acc.type = typeVal;
+                    acc.media = mediaVal;
+                    acc.startMonth = startMonthVal;
+                    acc.initialBudget = budgetVal;
+                }
+                showNotification('계정 정보가 수정되었습니다.');
+            } else {
+                const newAcc = {
+                    id: nextAccountId++,
+                    media: mediaVal,
+                    type: typeVal,
+                    startMonth: startMonthVal,
+                    initialBudget: budgetVal
+                };
+                accounts.push(newAcc);
+                showNotification('새로운 계정이 추가되었습니다.');
+            }
+
+            closeAccountModal();
+            recalculateAndRender();
+            triggerCloudSync();
+        }
+
+        let onConfirmAction = null;
+
+        function showCustomConfirm(title, message, iconClass, iconBgClass, okBtnText, okBtnClass, onConfirm) {
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            
+            const iconElem = document.getElementById('confirm-icon');
+            iconElem.className = iconClass || 'fa-solid fa-triangle-exclamation text-xl';
+            
+            const iconBg = document.getElementById('confirm-icon-bg');
+            iconBg.className = iconBgClass || 'p-3 bg-amber-100 text-amber-600 rounded-xl shrink-0';
+            
+            const okBtn = document.getElementById('confirm-ok-btn');
+            okBtn.textContent = okBtnText || '확인';
+            okBtn.className = okBtnClass || 'px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition shadow-sm';
+            
+            onConfirmAction = onConfirm;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            onConfirmAction = null;
+        }
+
+        document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+            if (onConfirmAction) {
+                onConfirmAction();
+            }
+            closeConfirmModal();
+        });
+
+        function requestDeleteAccount(id) {
+            showCustomConfirm(
+                '계정 삭제',
+                '선택한 매핑 계정을 삭제하시겠습니까?',
+                'fa-solid fa-trash-can text-xl',
+                'p-3 bg-rose-100 text-rose-600 rounded-xl shrink-0',
+                '삭제하기',
+                'px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition shadow-sm',
+                () => {
+                    accounts = accounts.filter(a => a.id !== id);
+                    recalculateAndRender();
+                    showNotification('계정이 삭제되었습니다.');
+                    triggerCloudSync();
+                }
+            );
+        }
+
+        function requestResetToDefault() {
+            showCustomConfirm(
+                '기본 초기화',
+                '모든 계정을 수습가이드 기본 15개 상태로 초기화하시겠습니까?',
+                'fa-solid fa-rotate-left text-xl',
+                'p-3 bg-indigo-100 text-indigo-600 rounded-xl shrink-0',
+                '초기화',
+                'px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-sm',
+                () => {
+                    accounts = JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
+                    recalculateAndRender();
+                    showNotification('기본 15개 계정으로 초기화되었습니다.');
+                    triggerCloudSync();
+                }
+            );
+        }
+
+        // Debounce cloud sync calls
+        let syncTimeout = null;
+        function triggerCloudSync() {
+            if (syncTimeout) clearTimeout(syncTimeout);
+            syncTimeout = setTimeout(() => {
+                pushToSupabase();
+            }, 300);
+        }
+
+        function saveToLocalStorage(notify = true) {
+            const dataToSave = {
+                accounts: accounts,
+                globalSettings: globalSettings
+            };
+            localStorage.setItem('probation_simulator_data', JSON.stringify(dataToSave));
+            if (notify) showNotification('현재 시뮬레이션 세팅이 브라우저에 저장되었습니다!');
+        }
+
+        function loadSavedData() {
+            const saved = localStorage.getItem('probation_simulator_data');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && Array.isArray(parsed.accounts) && parsed.globalSettings) {
+                        accounts = parsed.accounts;
+                        globalSettings = parsed.globalSettings;
+                        updateGlobalSettingsUI();
+                        return true;
+                    }
+                } catch (e) {
+                    console.error("Failed to load saved data:", e);
+                }
+            }
+            return false;
+        }
+
+        function utf8ToBase64(str) {
+            return window.btoa(unescape(encodeURIComponent(str)));
+        }
+
+        function base64ToUtf8(str) {
+            return decodeURIComponent(escape(window.atob(str)));
+        }
+
+        function toUrlSafeBase64(str) {
+            return utf8ToBase64(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        function fromUrlSafeBase64(str) {
+            let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+            while (base64.length % 4) {
+                base64 += '=';
+            }
+            return base64ToUtf8(base64);
+        }
+
+        function openShareModal() {
+            const dataToShare = {
+                accounts: accounts,
+                globalSettings: globalSettings
+            };
+            const jsonStr = JSON.stringify(dataToShare);
+            const encoded = toUrlSafeBase64(jsonStr);
+
+            document.getElementById('share-code-input').value = encoded;
+            document.getElementById('share-url-input').value = window.location.href.split('#')[0] + '#data=' + encoded;
+            document.getElementById('import-code-input').value = '';
+            document.getElementById('share-modal').classList.remove('hidden');
+        }
+
+        function closeShareModal() {
+            document.getElementById('share-modal').classList.add('hidden');
+        }
+
+        function copyShareLinkOnly() {
+            const shareUrlInput = document.getElementById('share-url-input');
+            copyToClipboard(shareUrlInput.value);
+            showNotification("접속 URL이 클립보드에 복사되었습니다!");
+        }
+
+        function copyShareCode() {
+            const codeInput = document.getElementById('share-code-input');
+            copyToClipboard(codeInput.value);
+            showNotification("설정 코드가 복사되었습니다!");
+        }
+
+        function loadFromShareCode() {
+            const inputVal = document.getElementById('import-code-input').value.trim();
+            if (!inputVal) {
+                showNotification("복원할 설정 코드를 입력해주세요.");
+                return;
+            }
+            try {
+                const jsonStr = fromUrlSafeBase64(inputVal);
+                const parsed = JSON.parse(jsonStr);
+                if (parsed && Array.isArray(parsed.accounts) && parsed.globalSettings) {
+                    accounts = parsed.accounts;
+                    globalSettings = parsed.globalSettings;
+                    updateGlobalSettingsUI();
+                    recalculateAndRender();
+                    closeShareModal();
+                    triggerCloudSync();
+                    showNotification("설정 코드가 성공적으로 적용되었습니다!");
+                } else {
+                    showNotification("유효하지 않은 설정 코드입니다.");
+                }
+            } catch (e) {
+                console.error("Failed to parse share code:", e);
+                showNotification("코드 해독 실패: 올바른 설정 코드가 아닙니다.");
+            }
+        }
+
+        function copyToClipboard(text) {
+            const dummy = document.createElement('textarea');
+            document.body.appendChild(dummy);
+            dummy.value = text;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+        }
+
+        function exportJsonFile() {
+            const dataToShare = {
+                accounts: accounts,
+                globalSettings: globalSettings
+            };
+            const jsonStr = JSON.stringify(dataToShare, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `probation_sales_simulation_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showNotification("JSON 파일 백업 내보내기가 완료되었습니다.");
+        }
+
+        function importJsonFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const parsed = JSON.parse(evt.target.result);
+                    if (parsed && Array.isArray(parsed.accounts) && parsed.globalSettings) {
+                        accounts = parsed.accounts;
+                        globalSettings = parsed.globalSettings;
+                        updateGlobalSettingsUI();
+                        recalculateAndRender();
+                        closeShareModal();
+                        triggerCloudSync();
+                        showNotification("JSON 파일 데이터를 성공적으로 불러왔습니다!");
+                    } else {
+                        showNotification("유효하지 않은 시뮬레이션 파일입니다.");
+                    }
+                } catch (err) {
+                    console.error("JSON import error:", err);
+                    showNotification("JSON 파일 읽기 중 오류가 발생했습니다.");
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        }
+
+        function loadFromUrlHash() {
+            const hash = window.location.hash;
+            if (hash && hash.includes('#data=')) {
+                try {
+                    const encoded = hash.split('#data=')[1];
+                    const jsonStr = fromUrlSafeBase64(encoded);
+                    const parsed = JSON.parse(jsonStr);
+                    if (parsed && Array.isArray(parsed.accounts) && parsed.globalSettings) {
+                        accounts = parsed.accounts;
+                        globalSettings = parsed.globalSettings;
+                        updateGlobalSettingsUI();
+                        return true;
+                    }
+                } catch (e) {
+                    console.error("Failed to parse URL hash data:", e);
+                }
+            }
+            return false;
+        }
+
+        function openGuideModal() {
+            document.getElementById('guide-modal').classList.remove('hidden');
+        }
+
+        function closeGuideModal() {
+            document.getElementById('guide-modal').classList.add('hidden');
+        }
+
+        function showNotification(msg) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-semibold flex items-center gap-2 pointer-events-auto border border-slate-700 transition-all duration-300 opacity-0 transform translate-y-2';
+            toast.innerHTML = `<i class="fa-solid fa-circle-info text-brand-400"></i> ${msg}`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-0', 'translate-y-2');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        window.onload = function() {
+            const loadedFromHash = loadFromUrlHash();
+            if (!loadedFromHash) {
+                loadSavedData();
+            }
+
+            accounts.forEach(a => {
+                if (a.id >= nextAccountId) nextAccountId = a.id + 1;
+            });
+
+            updateGlobalSettingsUI();
+            recalculateAndRender();
+
+            // Initialize Supabase Database Connection
+            initSupabaseSync();
+        };
+
+        window.addEventListener('hashchange', function() {
+            if (loadFromUrlHash()) {
+                recalculateAndRender();
+                showNotification("공유 URL 데이터가 화면에 적용되었습니다.");
+            }
+        });
+    </script>
+</body>
+</html>
