@@ -55,6 +55,12 @@
                 </div>
             </div>
             <div class="flex items-center space-x-2">
+                <!-- Supabase Cloud Connection Status Badge -->
+                <button id="supabase-status-btn" onclick="openSupabaseModal()" class="px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition duration-200 flex items-center gap-1.5 border border-emerald-200 shadow-sm" title="클라우드 동기화 상태 설정">
+                    <span id="supabase-status-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span id="supabase-status-text">연동 상태 확인중</span>
+                </button>
+
                 <button onclick="openSaveModal()" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition duration-200 flex items-center gap-1.5 shadow-sm">
                     <i class="fa-solid fa-floppy-disk"></i> <span class="hidden sm:inline">저장</span>
                 </button>
@@ -76,7 +82,7 @@
                 <h2 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
                     <i class="fa-solid fa-sliders text-brand-600"></i> 시뮬레이션 변수 설정
                 </h2>
-                <span class="text-xs text-slate-400">옵션 변경 시 시뮬레이션 결과에 즉시 반영됩니다.</span>
+                <span class="text-xs text-slate-400">옵션 변경 시 실시간으로 전체 데이터 계산에 자동 반영됩니다.</span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -499,7 +505,7 @@
 
     <!-- Modal 5: Supabase Settings Modal -->
     <div id="supabase-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                 <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
                     <i class="fa-solid fa-database text-emerald-600"></i> Supabase 클라우드 연동 설정
@@ -513,7 +519,7 @@
                         <span>현재 연동 상태</span>
                         <span id="modal-supabase-status" class="text-xs font-semibold text-slate-500">확인 중...</span>
                     </div>
-                    <p class="text-[11px] text-slate-500">Supabase DB와 연결하여 팀원들과 실시간으로 매출 시뮬레이션 데이터를 공유 및 동기화합니다.</p>
+                    <p class="text-[11px] text-slate-500">Supabase DB와 연결하여 팀원들과 실시간으로 매출 시뮬레이션 데이터를 공유합니다.</p>
                 </div>
 
                 <div>
@@ -522,20 +528,30 @@
                 </div>
 
                 <div>
-                    <label class="block font-bold text-slate-700 mb-1">Supabase Anon Key (API Key)</label>
-                    <input type="password" id="supabase-key-input" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-mono text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 text-xs" placeholder="eyJhbGciOiJIUzI1NiI...">
+                    <label class="block font-bold text-slate-700 mb-1">Supabase Anon / Publishable Key</label>
+                    <input type="password" id="supabase-key-input" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-mono text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 text-xs" placeholder="sb_publishable_... 또는 eyJhbGci...">
                 </div>
 
-                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 space-y-1">
-                    <p class="font-bold"><i class="fa-solid fa-lightbulb mr-1"></i> Supabase 테이블 설정 안내</p>
-                    <p>Supabase SQL Editor에서 아래 테이블을 생성해 주세요:</p>
-                    <code class="block bg-amber-100/70 p-1.5 rounded font-mono text-[10px] text-amber-900 overflow-x-auto">
-                        create table simulations (id text primary key, accounts jsonb, global_settings jsonb, updated_at timestamp);
-                    </code>
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 space-y-2">
+                    <div class="flex justify-between items-center font-bold">
+                        <span><i class="fa-solid fa-lightbulb text-amber-600 mr-1"></i> Supabase 필수 SQL 설정</span>
+                        <button onclick="copySqlScript()" class="px-2 py-1 bg-amber-200/80 hover:bg-amber-300 rounded text-[10px] font-bold text-amber-900 transition">
+                            SQL 복사
+                        </button>
+                    </div>
+                    <pre id="sql-code-block" class="bg-amber-100/80 p-2 rounded font-mono text-[10px] text-amber-950 overflow-x-auto whitespace-pre">
+CREATE TABLE IF NOT EXISTS public.simulations (
+    id TEXT PRIMARY KEY,
+    accounts JSONB,
+    global_settings JSONB,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+ALTER TABLE public.simulations DISABLE ROW LEVEL SECURITY;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.simulations;</pre>
                 </div>
             </div>
 
-            <div class="pt-2 flex justify-between items-center text-xs">
+            <div class="pt-2 flex justify-between items-center text-xs border-t border-slate-100">
                 <button onclick="resetSupabaseConfig()" class="px-3 py-2 text-slate-500 hover:text-rose-600 font-semibold transition">
                     초기화
                 </button>
@@ -547,7 +563,7 @@
         </div>
     </div>
 
-    <!-- Modal 6: Custom Confirmation Modal -->
+    <!-- Modal 6: Confirmation Modal -->
     <div id="confirm-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100 space-y-4">
             <div class="flex items-center gap-3">
@@ -602,52 +618,44 @@
         let monthlyChartInstance = null;
         let mediaPieChartInstance = null;
 
-        // WebSocket availability checker
-        function checkWebSocketAllowed() {
-            try {
-                return typeof WebSocket !== 'undefined';
-            } catch (e) {
-                return false;
-            }
+        function cleanSupabaseUrl(rawUrl) {
+            if (!rawUrl) return "";
+            let cleaned = rawUrl.trim();
+            cleaned = cleaned.replace(/\/rest\/v1\/?$/i, "");
+            cleaned = cleaned.replace(/\/+$/, "");
+            return cleaned;
         }
 
-        // Supabase Credentials & Settings
-        let SUPABASE_URL = "https://yztvxeqnqoujomaxihmi.supabase.co";
-        let SUPABASE_KEY = "sb_publishable_u4GMFqsb1ub4nazpvKcvaA_QQ8X4zJJ";
-
+        let SUPABASE_URL = "";
+        let SUPABASE_KEY = "";
         let supabaseClient = null;
         let isRemoteUpdate = false;
         const RECORD_ID = 'shared_default';
-        let pollingInterval = null;
-        let realtimeChannel = null;
 
-        // Load User Config from LocalStorage if exists
         function loadSupabaseCredentials() {
             try {
                 const savedConfig = localStorage.getItem('user_supabase_config');
                 if (savedConfig) {
                     const parsed = JSON.parse(savedConfig);
                     if (parsed.url && parsed.key) {
-                        SUPABASE_URL = parsed.url;
-                        SUPABASE_KEY = parsed.key;
+                        SUPABASE_URL = cleanSupabaseUrl(parsed.url);
+                        SUPABASE_KEY = parsed.key.trim();
                     }
                 }
             } catch (e) {
-                console.error("Failed to load user supabase config", e);
+                console.error("Supabase 설정 로드 실패:", e);
             }
         }
 
-        // Initialize or Re-initialize Supabase Client
         function initSupabaseClient() {
             loadSupabaseCredentials();
             if (window.supabase && SUPABASE_URL && SUPABASE_KEY) {
                 try {
                     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                    updateSupabaseStatusUI(true, "Supabase 연동 완료");
+                    updateSupabaseStatusUI(true, "클라우드 설정 준비됨");
                 } catch (e) {
-                    console.error("Supabase Client Init Error:", e);
                     supabaseClient = null;
-                    updateSupabaseStatusUI(false, "설정 오류");
+                    updateSupabaseStatusUI(false, "로컬 모드");
                 }
             } else {
                 updateSupabaseStatusUI(false, "로컬 모드");
@@ -661,20 +669,20 @@
             const modalStatus = document.getElementById('modal-supabase-status');
 
             if (isConnected) {
-                if (btn) btn.className = "px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition duration-200 flex items-center gap-1.5 border border-emerald-200";
+                if (btn) btn.className = "px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition duration-200 flex items-center gap-1.5 border border-emerald-200 shadow-sm";
                 if (dot) dot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
-                if (statusText) statusText.textContent = "Supabase 연동 중";
+                if (statusText) statusText.textContent = messageText || "클라우드 연결됨";
                 if (modalStatus) {
-                    modalStatus.textContent = "🟢 정상 연결됨";
+                    modalStatus.textContent = "🟢 연동 활성화 (" + messageText + ")";
                     modalStatus.className = "text-xs font-bold text-emerald-600";
                 }
             } else {
-                if (btn) btn.className = "px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition duration-200 flex items-center gap-1.5 border border-amber-200";
-                if (dot) dot.className = "w-2 h-2 rounded-full bg-amber-500";
-                if (statusText) statusText.textContent = messageText || "로컬 모드";
+                if (btn) btn.className = "px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition duration-200 flex items-center gap-1.5 border border-slate-300 shadow-sm";
+                if (dot) dot.className = "w-2 h-2 rounded-full bg-slate-400";
+                if (statusText) statusText.textContent = "로컬 모드";
                 if (modalStatus) {
-                    modalStatus.textContent = "🟡 " + (messageText || "연동 안됨 (로컬 저장)");
-                    modalStatus.className = "text-xs font-bold text-amber-600";
+                    modalStatus.textContent = "⚪ 로컬 단독 실행 중";
+                    modalStatus.className = "text-xs font-bold text-slate-500";
                 }
             }
         }
@@ -690,16 +698,19 @@
         }
 
         function saveSupabaseConfig() {
-            const urlInput = document.getElementById('supabase-url-input').value.trim();
-            const keyInput = document.getElementById('supabase-key-input').value.trim();
+            const rawUrl = document.getElementById('supabase-url-input').value;
+            const rawKey = document.getElementById('supabase-key-input').value;
 
-            if (!urlInput || !keyInput) {
-                showNotification("Supabase Project URL과 Anon Key를 모두 입력해 주세요.");
+            const cleanedUrl = cleanSupabaseUrl(rawUrl);
+            const cleanedKey = rawKey ? rawKey.trim() : '';
+
+            if (!cleanedUrl || !cleanedKey) {
+                showNotification("Supabase Project URL과 Key를 모두 입력해 주세요.");
                 return;
             }
 
-            SUPABASE_URL = urlInput;
-            SUPABASE_KEY = keyInput;
+            SUPABASE_URL = cleanedUrl;
+            SUPABASE_KEY = cleanedKey;
 
             localStorage.setItem('user_supabase_config', JSON.stringify({
                 url: SUPABASE_URL,
@@ -707,150 +718,27 @@
             }));
 
             initSupabaseClient();
-            initSupabaseSync();
             closeSupabaseModal();
-            showNotification("Supabase 연동 설정이 저장 및 적용되었습니다.");
+            showNotification("Supabase 연동 설정이 저장되었습니다.");
         }
 
         function resetSupabaseConfig() {
             localStorage.removeItem('user_supabase_config');
-            SUPABASE_URL = "https://yztvxeqnqoujomaxihmi.supabase.co";
-            SUPABASE_KEY = "sb_publishable_u4GMFqsb1ub4nazpvKcvaA_QQ8X4zJJ";
-            initSupabaseClient();
-            initSupabaseSync();
+            SUPABASE_URL = "";
+            SUPABASE_KEY = "";
+            supabaseClient = null;
+            updateSupabaseStatusUI(false, "로컬 모드");
             closeSupabaseModal();
-            showNotification("Supabase 설정이 기본값으로 초기화되었습니다.");
+            showNotification("Supabase 설정이 초기화되었습니다.");
         }
 
-        // Connect and Sync with Backend Data
-        async function initSupabaseSync() {
-            if (!supabaseClient) {
-                updateSupabaseStatusUI(false, "로컬 모드");
-                return;
-            }
-
-            try {
-                // Fetch existing data row from table 'simulations'
-                const { data, error } = await supabaseClient
-                    .from('simulations')
-                    .select('*')
-                    .eq('id', RECORD_ID)
-                    .maybeSingle();
-
-                if (error && error.code !== 'PGRST116') {
-                    console.warn("Fetch note:", error.message);
-                }
-
-                if (data && data.accounts && data.global_settings) {
-                    window.accounts = data.accounts;
-                    window.globalSettings = data.global_settings;
-                    updateGlobalSettingsUI();
-                    recalculateAndRender();
-                    updateSupabaseStatusUI(true, "Supabase 연동됨");
-                } else {
-                    // First time initialization
-                    await pushToSupabase();
-                }
-
-                // Safely test WebSocket permission before subscribing to channels
-                if (checkWebSocketAllowed()) {
-                    try {
-                        if (realtimeChannel) {
-                            supabaseClient.removeChannel(realtimeChannel);
-                        }
-                        realtimeChannel = supabaseClient
-                            .channel('public:simulations')
-                            .on('postgres_changes', { event: '*', schema: 'public', table: 'simulations', filter: `id=eq.${RECORD_ID}` }, (payload) => {
-                                if (payload.new && payload.new.accounts && payload.new.global_settings) {
-                                    isRemoteUpdate = true;
-                                    window.accounts = payload.new.accounts;
-                                    window.globalSettings = payload.new.global_settings;
-                                    updateGlobalSettingsUI();
-                                    recalculateAndRender();
-                                    isRemoteUpdate = false;
-                                }
-                            });
-
-                        realtimeChannel.subscribe((status, err) => {
-                            if (err || status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
-                                startHttpPolling();
-                            }
-                        });
-                    } catch (wsErr) {
-                        startHttpPolling();
-                    }
-                } else {
-                    startHttpPolling();
-                }
-
-            } catch (err) {
-                console.error("Sync initialization error:", err);
-                updateSupabaseStatusUI(false, "연동 오류");
-                startHttpPolling();
-            }
+        function copySqlScript() {
+            const sqlText = document.getElementById('sql-code-block').innerText;
+            copyToClipboard(sqlText);
+            showNotification("SQL 설정 쿼리가 복사되었습니다!");
         }
 
-        // Fallback HTTP Polling
-        function startHttpPolling() {
-            if (pollingInterval) return;
-
-            pollingInterval = setInterval(async () => {
-                if (isRemoteUpdate) return;
-                try {
-                    const { data, error } = await supabaseClient
-                        .from('simulations')
-                        .select('*')
-                        .eq('id', RECORD_ID)
-                        .maybeSingle();
-
-                    if (!error && data && data.accounts && data.global_settings) {
-                        const currentData = JSON.stringify({ a: window.accounts, s: window.globalSettings });
-                        const remoteData = JSON.stringify({ a: data.accounts, s: data.global_settings });
-
-                        if (currentData !== remoteData) {
-                            isRemoteUpdate = true;
-                            window.accounts = data.accounts;
-                            window.globalSettings = data.global_settings;
-                            updateGlobalSettingsUI();
-                            recalculateAndRender();
-                            isRemoteUpdate = false;
-                        }
-                    }
-                } catch (e) {
-                    console.warn("Polling note:", e);
-                }
-            }, 4000);
-        }
-
-        // Save state changes
-        async function pushToSupabase() {
-            if (isRemoteUpdate) return;
-
-            if (!supabaseClient) {
-                saveToLocalStorage(false);
-                return;
-            }
-
-            try {
-                const payload = {
-                    id: RECORD_ID,
-                    accounts: window.accounts,
-                    global_settings: window.globalSettings,
-                    updated_at: new Date().toISOString()
-                };
-
-                const { error } = await supabaseClient
-                    .from('simulations')
-                    .upsert(payload, { onConflict: 'id' });
-
-                if (error) {
-                    saveToLocalStorage(false);
-                }
-            } catch (err) {
-                console.error("Save error:", err);
-            }
-        }
-
+        // Calculate Revenue Numbers per Account
         function calculateAccountRevenues(acc) {
             const mRatio = globalSettings.mRatio / 100;
             const decay = (100 - globalSettings.decayRate) / 100;
@@ -916,7 +804,7 @@
             document.getElementById('upsell-rate-value').textContent = `${globalSettings.upsellRate}% 성장`;
 
             recalculateAndRender();
-            triggerCloudSync();
+            saveToLocalStorage(false);
         }
 
         function unifyMRatio() {
@@ -934,7 +822,7 @@
                 }
             });
             recalculateAndRender();
-            triggerCloudSync();
+            saveToLocalStorage(false);
             showNotification(`총 ${count}개 신규 계정의 초기 월예산이 ${defaultB}만원으로 통일되었습니다.`);
         }
 
@@ -944,6 +832,7 @@
             let mediaRevenues = { '네이버': 0, '버티컬': 0, '오픈마켓': 0 };
 
             const tableBody = document.getElementById('account-table-body');
+            if (!tableBody) return;
             tableBody.innerHTML = '';
 
             accounts.forEach((acc, idx) => {
@@ -1029,13 +918,17 @@
         function updateMediaBar(key, count) {
             const countText = document.getElementById(`${key}-count-text`);
             const bar = document.getElementById(`${key}-bar`);
-            countText.textContent = `${count}/5개`;
-            const pct = Math.min((count / 5) * 100, 100);
-            bar.style.width = `${pct}%`;
+            if (countText && bar) {
+                countText.textContent = `${count}/5개`;
+                const pct = Math.min((count / 5) * 100, 100);
+                bar.style.width = `${pct}%`;
+            }
         }
 
         function renderMonthlyChart(m1, m2, m3) {
-            const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
+            const canvas = document.getElementById('monthlyTrendChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
             if (monthlyChartInstance) {
                 monthlyChartInstance.destroy();
             }
@@ -1084,7 +977,9 @@
         }
 
         function renderMediaPieChart(mediaRevenues) {
-            const ctx = document.getElementById('mediaPieChart').getContext('2d');
+            const canvas = document.getElementById('mediaPieChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
             if (mediaPieChartInstance) {
                 mediaPieChartInstance.destroy();
             }
@@ -1184,7 +1079,7 @@
 
             closeAccountModal();
             recalculateAndRender();
-            triggerCloudSync();
+            saveToLocalStorage(false);
         }
 
         let onConfirmAction = null;
@@ -1231,7 +1126,7 @@
                     accounts = accounts.filter(a => a.id !== id);
                     recalculateAndRender();
                     showNotification('계정이 삭제되었습니다.');
-                    triggerCloudSync();
+                    saveToLocalStorage(false);
                 }
             );
         }
@@ -1248,18 +1143,9 @@
                     accounts = JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
                     recalculateAndRender();
                     showNotification('기본 15개 계정으로 초기화되었습니다.');
-                    triggerCloudSync();
+                    saveToLocalStorage(false);
                 }
             );
-        }
-
-        // Debounce cloud save calls
-        let syncTimeout = null;
-        function triggerCloudSync() {
-            if (syncTimeout) clearTimeout(syncTimeout);
-            syncTimeout = setTimeout(() => {
-                pushToSupabase();
-            }, 300);
         }
 
         const SAVES_KEY = 'probation_simulator_named_saves';
@@ -1269,7 +1155,7 @@
                 const saved = localStorage.getItem(SAVES_KEY);
                 return saved ? JSON.parse(saved) : {};
             } catch (e) {
-                console.error("Failed to parse saved simulations:", e);
+                console.error("저장 목록 읽기 실패:", e);
                 return {};
             }
         }
@@ -1315,7 +1201,6 @@
             
             closeSaveModal();
             showNotification(`"${nameInput}" 저장 완료!`);
-            triggerCloudSync();
         }
 
         function openLoadModal() {
@@ -1329,6 +1214,7 @@
 
         function renderSavedList() {
             const container = document.getElementById('saved-list-container');
+            if (!container) return;
             const saves = getSavedSimulations();
             const keys = Object.keys(saves).sort((a, b) => saves[b].id.localeCompare(saves[a].id));
 
@@ -1390,7 +1276,6 @@
             recalculateAndRender();
             closeLoadModal();
             showNotification(`"${target.name}" 시뮬레이션을 불러왔습니다.`);
-            triggerCloudSync();
         }
 
         function deleteNamedSimulation(id) {
@@ -1435,86 +1320,10 @@
                         return true;
                     }
                 } catch (e) {
-                    console.error("Failed to load saved data:", e);
+                    console.error("저장 데이터 로드 실패:", e);
                 }
             }
             return false;
-        }
-
-        function utf8ToBase64(str) {
-            return window.btoa(unescape(encodeURIComponent(str)));
-        }
-
-        function base64ToUtf8(str) {
-            return decodeURIComponent(escape(window.atob(str)));
-        }
-
-        function toUrlSafeBase64(str) {
-            return utf8ToBase64(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-        }
-
-        function fromUrlSafeBase64(str) {
-            let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
-            while (base64.length % 4) {
-                base64 += '=';
-            }
-            return base64ToUtf8(base64);
-        }
-
-        function openShareModal() {
-            const dataToShare = {
-                accounts: accounts,
-                globalSettings: globalSettings
-            };
-            const jsonStr = JSON.stringify(dataToShare);
-            const encoded = toUrlSafeBase64(jsonStr);
-
-            document.getElementById('share-code-input').value = encoded;
-            document.getElementById('share-url-input').value = window.location.href.split('#')[0] + '#data=' + encoded;
-            document.getElementById('import-code-input').value = '';
-            document.getElementById('share-modal').classList.remove('hidden');
-        }
-
-        function closeShareModal() {
-            document.getElementById('share-modal').classList.add('hidden');
-        }
-
-        function copyShareLinkOnly() {
-            const shareUrlInput = document.getElementById('share-url-input');
-            copyToClipboard(shareUrlInput.value);
-            showNotification("접속 URL이 클립보드에 복사되었습니다!");
-        }
-
-        function copyShareCode() {
-            const codeInput = document.getElementById('share-code-input');
-            copyToClipboard(codeInput.value);
-            showNotification("설정 코드가 복사되었습니다!");
-        }
-
-        function loadFromShareCode() {
-            const inputVal = document.getElementById('import-code-input').value.trim();
-            if (!inputVal) {
-                showNotification("복원할 설정 코드를 입력해주세요.");
-                return;
-            }
-            try {
-                const jsonStr = fromUrlSafeBase64(inputVal);
-                const parsed = JSON.parse(jsonStr);
-                if (parsed && Array.isArray(parsed.accounts) && parsed.globalSettings) {
-                    accounts = parsed.accounts;
-                    globalSettings = parsed.globalSettings;
-                    updateGlobalSettingsUI();
-                    recalculateAndRender();
-                    closeShareModal();
-                    triggerCloudSync();
-                    showNotification("설정 코드가 성공적으로 적용되었습니다!");
-                } else {
-                    showNotification("유효하지 않은 설정 코드입니다.");
-                }
-            } catch (e) {
-                console.error("Failed to parse share code:", e);
-                showNotification("코드 해독 실패: 올바른 설정 코드가 아닙니다.");
-            }
         }
 
         function copyToClipboard(text) {
@@ -1524,72 +1333,6 @@
             dummy.select();
             document.execCommand('copy');
             document.body.removeChild(dummy);
-        }
-
-        function exportJsonFile() {
-            const dataToShare = {
-                accounts: accounts,
-                globalSettings: globalSettings
-            };
-            const jsonStr = JSON.stringify(dataToShare, null, 2);
-            const blob = new Blob([jsonStr], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `probation_sales_simulation_${new Date().toISOString().slice(0, 10)}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showNotification("JSON 파일 백업 내보내기가 완료되었습니다.");
-        }
-
-        function importJsonFile(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                try {
-                    const parsed = JSON.parse(evt.target.result);
-                    if (parsed && Array.isArray(parsed.accounts) && parsed.globalSettings) {
-                        accounts = parsed.accounts;
-                        globalSettings = parsed.globalSettings;
-                        updateGlobalSettingsUI();
-                        recalculateAndRender();
-                        closeShareModal();
-                        triggerCloudSync();
-                        showNotification("JSON 파일 데이터를 성공적으로 불러왔습니다!");
-                    } else {
-                        showNotification("유효하지 않은 시뮬레이션 파일입니다.");
-                    }
-                } catch (err) {
-                    console.error("JSON import error:", err);
-                    showNotification("JSON 파일 읽기 중 오류가 발생했습니다.");
-                }
-            };
-            reader.readAsText(file);
-            e.target.value = '';
-        }
-
-        function loadFromUrlHash() {
-            const hash = window.location.hash;
-            if (hash && hash.includes('#data=')) {
-                try {
-                    const encoded = hash.split('#data=')[1];
-                    const jsonStr = fromUrlSafeBase64(encoded);
-                    const parsed = JSON.parse(jsonStr);
-                    if (parsed && Array.isArray(parsed.accounts) && parsed.globalSettings) {
-                        accounts = parsed.accounts;
-                        globalSettings = parsed.globalSettings;
-                        updateGlobalSettingsUI();
-                        return true;
-                    }
-                } catch (e) {
-                    console.error("Failed to parse URL hash data:", e);
-                }
-            }
-            return false;
         }
 
         function openGuideModal() {
@@ -1602,6 +1345,7 @@
 
         function showNotification(msg) {
             const container = document.getElementById('toast-container');
+            if (!container) return;
             const toast = document.createElement('div');
             toast.className = 'bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-semibold flex items-center gap-2 pointer-events-auto border border-slate-700 transition-all duration-300 opacity-0 transform translate-y-2';
             toast.innerHTML = `<i class="fa-solid fa-circle-info text-brand-400"></i> ${msg}`;
@@ -1618,10 +1362,7 @@
         }
 
         window.onload = function() {
-            const loadedFromHash = loadFromUrlHash();
-            if (!loadedFromHash) {
-                loadSavedData();
-            }
+            loadSavedData();
 
             accounts.forEach(a => {
                 if (a.id >= nextAccountId) nextAccountId = a.id + 1;
@@ -1629,18 +1370,8 @@
 
             updateGlobalSettingsUI();
             recalculateAndRender();
-
-            // Initialize Supabase Client and Background Sync
             initSupabaseClient();
-            initSupabaseSync();
         };
-
-        window.addEventListener('hashchange', function() {
-            if (loadFromUrlHash()) {
-                recalculateAndRender();
-                showNotification("공유 URL 데이터가 화면에 적용되었습니다.");
-            }
-        });
     </script>
 </body>
 </html>
