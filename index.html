@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>수습사원 매출 시뮬레이터 (Supabase 실시간 동기화)</title>
+    <title>수습사원 매출 시뮬레이터</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons CDN -->
@@ -51,27 +51,15 @@
                     <i class="fa-solid fa-chart-line text-lg"></i>
                 </div>
                 <div>
-                    <div class="flex items-center gap-2">
-                        <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">수습사원 매출 시뮬레이터</h1>
-                        <span class="bg-emerald-50 text-emerald-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-200 hidden sm:inline-block">Supabase LIVE</span>
-                    </div>
-                    <p class="text-xs text-slate-500 hidden sm:block">Supabase DB로 모든 참여자가 함께 보고 실시간으로 편집하는 시뮬레이션</p>
+                    <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">수습사원 매출 시뮬레이터</h1>
                 </div>
             </div>
             <div class="flex items-center space-x-2">
-                <!-- Sync Status Badge -->
-                <div id="sync-status-badge" class="px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-lg flex items-center gap-1.5 border border-emerald-200 shadow-sm transition-all duration-300">
-                    <span class="relative flex h-2 w-2">
-                        <span id="sync-status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span id="sync-status-dot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <span id="sync-status-text" class="hidden sm:inline">Supabase 연결 준비 중...</span>
-                </div>
-                <button onclick="openShareModal()" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition duration-200 flex items-center gap-1.5 shadow-sm">
-                    <i class="fa-solid fa-share-nodes"></i> <span class="hidden sm:inline">공유 및 백업</span>
+                <button onclick="openSaveModal()" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition duration-200 flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-floppy-disk"></i> <span class="hidden sm:inline">저장</span>
                 </button>
-                <button onclick="saveToLocalStorage()" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition duration-200 flex items-center gap-1.5 border border-slate-300">
-                    <i class="fa-solid fa-floppy-disk"></i> <span class="hidden sm:inline">로컬 저장</span>
+                <button onclick="openLoadModal()" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition duration-200 flex items-center gap-1.5 border border-slate-300">
+                    <i class="fa-solid fa-folder-open"></i> <span class="hidden sm:inline">불러오기</span>
                 </button>
                 <button onclick="openGuideModal()" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition duration-200 flex items-center gap-1.5 border border-slate-300">
                     <i class="fa-solid fa-book"></i> <span class="hidden sm:inline">가이드</span>
@@ -86,9 +74,9 @@
         <section class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
                 <h2 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-                    <i class="fa-solid fa-sliders text-brand-600"></i> 시뮬레이션 변수 설정 (Supabase DB 실시간 연동)
+                    <i class="fa-solid fa-sliders text-brand-600"></i> 시뮬레이션 변수 설정
                 </h2>
-                <span class="text-xs text-slate-400">옵션 변경 시 DB에 즉시 반영되며 접속 중인 사용자에게 실시간 전파됩니다.</span>
+                <span class="text-xs text-slate-400">옵션 변경 시 시뮬레이션 결과에 즉시 반영됩니다.</span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -289,7 +277,7 @@
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div>
                     <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                        <i class="fa-solid fa-list-check text-brand-600"></i> 매핑 계정 관리 및 실시간 편집
+                        <i class="fa-solid fa-list-check text-brand-600"></i> 매핑 계정 관리 및 편집
                     </h2>
                     <p class="text-xs text-slate-500 mt-0.5">시작 시점(매핑월)에 따른 M, M+1, M+2 상대 매출이 자동 산출됩니다.</p>
                 </div>
@@ -442,78 +430,47 @@
         </div>
     </div>
 
-    <!-- Modal 2: Share & Data Restore Modal -->
-    <div id="share-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4 relative">
-            <button onclick="closeShareModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1">
-                <i class="fa-solid fa-xmark text-lg"></i>
-            </button>
-            <div class="border-b border-slate-200 pb-3">
+    <!-- Modal 2: Save Simulation Modal -->
+    <div id="save-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                 <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <i class="fa-solid fa-share-nodes text-indigo-600"></i> 시뮬레이션 공유 및 백업
+                    <i class="fa-solid fa-floppy-disk text-indigo-600"></i> 시뮬레이션 저장
                 </h3>
-                <p class="text-xs text-slate-500">Supabase 데이터베이스에 자동 동기화되며 코드나 파일로도 백업할 수 있습니다.</p>
+                <button onclick="closeSaveModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
-
-            <div class="space-y-4 text-xs">
-                <!-- URL Link Share -->
-                <div id="url-share-section" class="space-y-1.5">
-                    <label class="font-bold text-slate-700 block">1. 접속 URL (실시간 공유)</label>
-                    <div class="flex gap-2">
-                        <input type="text" id="share-url-input" readonly class="flex-grow bg-slate-50 border border-slate-300 text-slate-600 text-xs rounded-xl p-2.5 outline-none font-mono">
-                        <button onclick="copyShareLinkOnly()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shrink-0 transition">
-                            <i class="fa-solid fa-copy mr-1"></i> 링크 복사
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Share Code (Base64) -->
-                <div class="space-y-1.5">
-                    <label class="font-bold text-slate-700 block">2. 설정 백업 코드</label>
-                    <div class="flex gap-2">
-                        <input type="text" id="share-code-input" readonly class="flex-grow bg-slate-50 border border-slate-300 text-slate-600 text-xs rounded-xl p-2.5 outline-none font-mono text-[11px]" placeholder="설정 코드가 생성됩니다">
-                        <button onclick="copyShareCode()" class="px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl shrink-0 transition">
-                            <i class="fa-solid fa-code mr-1"></i> 코드 복사
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Import Share Code -->
-                <div class="space-y-1.5 pt-2 border-t border-slate-100">
-                    <label class="font-bold text-slate-700 block">3. 백업 코드 불러오기</label>
-                    <div class="flex gap-2">
-                        <input type="text" id="import-code-input" class="flex-grow bg-white border border-slate-300 text-slate-800 text-xs rounded-xl p-2.5 focus:ring-2 focus:ring-brand-500 outline-none font-mono text-[11px]" placeholder="전달받은 설정 코드를 붙여넣으세요">
-                        <button onclick="loadFromShareCode()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shrink-0 transition">
-                            <i class="fa-solid fa-download mr-1"></i> 데이터 적용
-                        </button>
-                    </div>
-                </div>
-
-                <!-- File Export / Import -->
-                <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                        <span class="font-bold text-slate-700 block">4. 파일 백업 & 복원</span>
-                        <span class="text-[11px] text-slate-400">JSON 파일 내보내기/불러오기</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="exportJsonFile()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition border border-slate-200">
-                            <i class="fa-solid fa-file-export mr-1"></i> 내보내기
-                        </button>
-                        <label class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition border border-slate-200 cursor-pointer">
-                            <i class="fa-solid fa-file-import mr-1"></i> 불러오기
-                            <input type="file" id="json-file-input" accept=".json" onchange="importJsonFile(event)" class="hidden">
-                        </label>
-                    </div>
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">저장명 입력</label>
+                    <input type="text" id="save-name-input" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 text-xs" placeholder="예: 2026 3분기 목표 시뮬레이션">
                 </div>
             </div>
-
-            <div class="pt-2 flex justify-end">
-                <button onclick="closeShareModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-medium">닫기</button>
+            <div class="pt-2 flex justify-end gap-2">
+                <button onclick="closeSaveModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium text-xs">취소</button>
+                <button onclick="handleSaveSubmit()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-sm">저장하기</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal 3: Guide Modal -->
+    <!-- Modal 3: Load Simulation Modal -->
+    <div id="load-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-folder-open text-indigo-600"></i> 저장된 시뮬레이션 불러오기
+                </h3>
+                <button onclick="closeLoadModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div id="saved-list-container" class="space-y-2 max-h-72 overflow-y-auto custom-scrollbar text-xs">
+                <!-- Dynamic saved slots -->
+            </div>
+            <div class="pt-2 flex justify-end">
+                <button onclick="closeLoadModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-medium">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 4: Guide Modal -->
     <div id="guide-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -596,7 +553,7 @@
             { id: 6, media: '버티컬', type: '신규', startMonth: 1, initialBudget: 50 },
             { id: 7, media: '버티컬', type: '신규', startMonth: 2, initialBudget: 50 },
             { id: 8, media: '버티컬', type: '신규', startMonth: 2, initialBudget: 90 },
-            { id: 9, media: '버티컬', type: '신규', startMonth: 2, initialBudget: 30 },
+            { id: 9, media: '버티컬', type: '신규', startMonth: 3, initialBudget: 30 },
             { id: 10, media: '버티컬', type: '신규', startMonth: 3, initialBudget: 50 },
             { id: 11, media: '오픈마켓', type: '신규', startMonth: 1, initialBudget: 50 },
             { id: 12, media: '오픈마켓', type: '신규', startMonth: 2, initialBudget: 50 },
@@ -612,17 +569,26 @@
         let monthlyChartInstance = null;
         let mediaPieChartInstance = null;
 
-        // Connect and Sync with Supabase DB
+        // Check if WebSocket constructor is permitted in current environment (Canvas/iframe)
+        function checkWebSocketAllowed() {
+            try {
+                if (typeof WebSocket === 'undefined') return false;
+                const dummy = new WebSocket('wss://127.0.0.1:0');
+                dummy.close();
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Connect and Sync with Backend Data
         async function initSupabaseSync() {
             if (!supabaseClient) {
-                updateSyncBadge('offline', '로컬 독립 세션');
                 return;
             }
 
             try {
-                updateSyncBadge('connecting', 'Supabase DB 연동 중...');
-
-                // Fetch existing data row from Supabase table 'simulations'
+                // Fetch existing data row from table 'simulations'
                 const { data, error } = await supabaseClient
                     .from('simulations')
                     .select('*')
@@ -630,7 +596,7 @@
                     .maybeSingle();
 
                 if (error && error.code !== 'PGRST116') {
-                    console.warn("Supabase fetch warning:", error.message);
+                    console.warn("Fetch note:", error.message);
                 }
 
                 if (data && data.accounts && data.global_settings) {
@@ -638,53 +604,48 @@
                     window.globalSettings = data.global_settings;
                     updateGlobalSettingsUI();
                     recalculateAndRender();
-                    const lastUpdated = data.updated_at ? new Date(data.updated_at).toLocaleTimeString('ko-KR') : '방금 전';
-                    updateSyncBadge('online', `Supabase 연결 완료 (${lastUpdated})`);
                 } else {
-                    // First time initialization in Supabase DB
+                    // First time initialization
                     await pushToSupabase();
                 }
 
-                // Try Realtime WebSocket subscription, fallback to HTTP polling if blocked in sandbox
-                try {
-                    const channel = supabaseClient
-                        .channel('public:simulations')
-                        .on('postgres_changes', { event: '*', schema: 'public', table: 'simulations', filter: `id=eq.${RECORD_ID}` }, (payload) => {
-                            if (payload.new && payload.new.accounts && payload.new.global_settings) {
-                                isRemoteUpdate = true;
-                                window.accounts = payload.new.accounts;
-                                window.globalSettings = payload.new.global_settings;
-                                updateGlobalSettingsUI();
-                                recalculateAndRender();
-                                isRemoteUpdate = false;
-                                const timeStr = payload.new.updated_at ? new Date(payload.new.updated_at).toLocaleTimeString('ko-KR') : '방금 전';
-                                updateSyncBadge('online', `Supabase 실시간 동기화 완료 (${timeStr})`);
+                // Safely test WebSocket permission before subscribing to channels
+                if (checkWebSocketAllowed()) {
+                    try {
+                        const channel = supabaseClient
+                            .channel('public:simulations')
+                            .on('postgres_changes', { event: '*', schema: 'public', table: 'simulations', filter: `id=eq.${RECORD_ID}` }, (payload) => {
+                                if (payload.new && payload.new.accounts && payload.new.global_settings) {
+                                    isRemoteUpdate = true;
+                                    window.accounts = payload.new.accounts;
+                                    window.globalSettings = payload.new.global_settings;
+                                    updateGlobalSettingsUI();
+                                    recalculateAndRender();
+                                    isRemoteUpdate = false;
+                                }
+                            });
+
+                        channel.subscribe((status, err) => {
+                            if (err || status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
+                                startHttpPolling();
                             }
                         });
-
-                    channel.subscribe((status, err) => {
-                        if (err || status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
-                            console.warn("Supabase Realtime WebSocket restricted in iframe. Switching to HTTP Polling.");
-                            startHttpPolling();
-                        }
-                    });
-                } catch (wsErr) {
-                    console.warn("WebSocket not allowed in Canvas preview. Falling back to HTTP Polling.", wsErr);
+                    } catch (wsErr) {
+                        startHttpPolling();
+                    }
+                } else {
                     startHttpPolling();
                 }
 
             } catch (err) {
-                console.error("Supabase sync initialization error:", err);
+                console.error("Sync initialization error:", err);
                 startHttpPolling();
-                updateSyncBadge('online', 'Supabase REST 연동 완료');
             }
         }
 
-        // Fallback HTTP Polling for environments where WebSockets are restricted (Canvas iFrame)
+        // Fallback HTTP Polling
         function startHttpPolling() {
             if (pollingInterval) return;
-            const lastUpdated = new Date().toLocaleTimeString('ko-KR');
-            updateSyncBadge('online', `Supabase REST 연동 완료 (${lastUpdated})`);
 
             pollingInterval = setInterval(async () => {
                 if (isRemoteUpdate) return;
@@ -706,27 +667,24 @@
                             updateGlobalSettingsUI();
                             recalculateAndRender();
                             isRemoteUpdate = false;
-                            const timeStr = data.updated_at ? new Date(data.updated_at).toLocaleTimeString('ko-KR') : '방금 전';
-                            updateSyncBadge('online', `Supabase 동기화 (${timeStr})`);
                         }
                     }
                 } catch (e) {
-                    console.warn("HTTP Polling note:", e);
+                    console.warn("Polling note:", e);
                 }
             }, 4000);
         }
 
-        // Push state changes to Supabase DB
+        // Save state changes
         async function pushToSupabase() {
             if (isRemoteUpdate) return;
 
             if (!supabaseClient) {
-                updateSyncBadge('offline', '로컬 백업 저장됨');
+                saveToLocalStorage(false);
                 return;
             }
 
             try {
-                updateSyncBadge('connecting', 'Supabase 저장 중...');
                 const payload = {
                     id: RECORD_ID,
                     accounts: window.accounts,
@@ -739,40 +697,10 @@
                     .upsert(payload, { onConflict: 'id' });
 
                 if (error) {
-                    console.warn("Supabase upsert note:", error.message);
-                    // Fallback to local storage backup if table is not provisioned
                     saveToLocalStorage(false);
-                    updateSyncBadge('online', 'Supabase 백업 연결됨');
-                } else {
-                    updateSyncBadge('online', 'Supabase DB 실시간 저장 완료');
                 }
             } catch (err) {
-                console.error("Supabase push error:", err);
-                updateSyncBadge('offline', '로컬 독립 모드');
-            }
-        }
-
-        function updateSyncBadge(status, text) {
-            const badge = document.getElementById('sync-status-badge');
-            const textElem = document.getElementById('sync-status-text');
-            const dotElem = document.getElementById('sync-status-dot');
-            const pingElem = document.getElementById('sync-status-ping');
-
-            if (!badge || !textElem) return;
-
-            textElem.textContent = text;
-            if (status === 'online') {
-                badge.className = "px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-lg flex items-center gap-1.5 border border-emerald-200 shadow-sm";
-                if (dotElem) dotElem.className = "relative inline-flex rounded-full h-2 w-2 bg-emerald-500";
-                if (pingElem) pingElem.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
-            } else if (status === 'connecting') {
-                badge.className = "px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg flex items-center gap-1.5 border border-amber-200 shadow-sm";
-                if (dotElem) dotElem.className = "relative inline-flex rounded-full h-2 w-2 bg-amber-500";
-                if (pingElem) pingElem.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75";
-            } else {
-                badge.className = "px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg flex items-center gap-1.5 border border-slate-200 shadow-sm";
-                if (dotElem) dotElem.className = "relative inline-flex rounded-full h-2 w-2 bg-slate-400";
-                if (pingElem) pingElem.className = "hidden";
+                console.error("Save error:", err);
             }
         }
 
@@ -1178,7 +1106,7 @@
             );
         }
 
-        // Debounce cloud sync calls
+        // Debounce cloud save calls
         let syncTimeout = null;
         function triggerCloudSync() {
             if (syncTimeout) clearTimeout(syncTimeout);
@@ -1187,13 +1115,165 @@
             }, 300);
         }
 
+        const SAVES_KEY = 'probation_simulator_named_saves';
+
+        function getSavedSimulations() {
+            try {
+                const saved = localStorage.getItem(SAVES_KEY);
+                return saved ? JSON.parse(saved) : {};
+            } catch (e) {
+                console.error("Failed to parse saved simulations:", e);
+                return {};
+            }
+        }
+
+        function openSaveModal() {
+            const dateStr = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            document.getElementById('save-name-input').value = `시뮬레이션 (${dateStr})`;
+            document.getElementById('save-modal').classList.remove('hidden');
+        }
+
+        function closeSaveModal() {
+            document.getElementById('save-modal').classList.add('hidden');
+        }
+
+        function handleSaveSubmit() {
+            const nameInput = document.getElementById('save-name-input').value.trim();
+            if (!nameInput) {
+                showNotification("저장명을 입력해주세요.");
+                return;
+            }
+
+            const saves = getSavedSimulations();
+            const id = 'save_' + Date.now();
+            
+            let totalRevenue = 0;
+            accounts.forEach(acc => {
+                const revs = calculateAccountRevenues(acc);
+                totalRevenue += revs.totalInProbation;
+            });
+
+            saves[id] = {
+                id: id,
+                name: nameInput,
+                date: new Date().toLocaleString('ko-KR'),
+                accounts: JSON.parse(JSON.stringify(accounts)),
+                globalSettings: JSON.parse(JSON.stringify(globalSettings)),
+                accountCount: accounts.length,
+                totalRevenue: totalRevenue
+            };
+
+            localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
+            saveToLocalStorage(false);
+            
+            closeSaveModal();
+            showNotification(`"${nameInput}" 저장 완료!`);
+            triggerCloudSync();
+        }
+
+        function openLoadModal() {
+            renderSavedList();
+            document.getElementById('load-modal').classList.remove('hidden');
+        }
+
+        function closeLoadModal() {
+            document.getElementById('load-modal').classList.add('hidden');
+        }
+
+        function renderSavedList() {
+            const container = document.getElementById('saved-list-container');
+            const saves = getSavedSimulations();
+            const keys = Object.keys(saves).sort((a, b) => saves[b].id.localeCompare(saves[a].id));
+
+            if (keys.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-400">
+                        <i class="fa-solid fa-folder-open text-3xl mb-2 block text-slate-300"></i>
+                        저장된 시뮬레이션 내역이 없습니다.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            keys.forEach(key => {
+                const item = saves[key];
+                const card = document.createElement('div');
+                card.className = "border border-slate-200 rounded-xl p-3.5 bg-slate-50 hover:bg-white hover:border-indigo-300 transition-all shadow-sm flex items-center justify-between gap-3";
+                card.innerHTML = `
+                    <div class="space-y-1">
+                        <h4 class="font-bold text-slate-900 text-xs sm:text-sm">${escapeHtml(item.name)}</h4>
+                        <div class="flex items-center gap-3 text-[11px] text-slate-500">
+                            <span><i class="fa-regular fa-clock mr-1"></i>${item.date}</span>
+                            <span><i class="fa-solid fa-cubes mr-1"></i>계정 ${item.accountCount || item.accounts.length}개</span>
+                            <span class="font-semibold text-indigo-600"><i class="fa-solid fa-won-sign mr-1"></i>${(item.totalRevenue || 0).toLocaleString()}만원</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button onclick="loadNamedSimulation('${item.id}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs transition">
+                            불러오기
+                        </button>
+                        <button onclick="deleteNamedSimulation('${item.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 transition" title="삭제">
+                            <i class="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+            });
+        }
+
+        function loadNamedSimulation(id) {
+            const saves = getSavedSimulations();
+            const target = saves[id];
+            if (!target) {
+                showNotification("해당 저장 데이터를 찾을 수 없습니다.");
+                return;
+            }
+
+            accounts = JSON.parse(JSON.stringify(target.accounts));
+            globalSettings = JSON.parse(JSON.stringify(target.globalSettings));
+            
+            updateGlobalSettingsUI();
+            recalculateAndRender();
+            closeLoadModal();
+            showNotification(`"${target.name}" 시뮬레이션을 불러왔습니다.`);
+            triggerCloudSync();
+        }
+
+        function deleteNamedSimulation(id) {
+            const saves = getSavedSimulations();
+            const target = saves[id];
+            if (!target) return;
+
+            showCustomConfirm(
+                '저장 내역 삭제',
+                `"${target.name}" 저장 내역을 삭제하시겠습니까?`,
+                'fa-solid fa-trash-can text-xl',
+                'p-3 bg-rose-100 text-rose-600 rounded-xl shrink-0',
+                '삭제하기',
+                'px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition shadow-sm',
+                () => {
+                    delete saves[id];
+                    localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
+                    renderSavedList();
+                    showNotification('저장 내역이 삭제되었습니다.');
+                }
+            );
+        }
+
         function saveToLocalStorage(notify = true) {
             const dataToSave = {
                 accounts: accounts,
                 globalSettings: globalSettings
             };
             localStorage.setItem('probation_simulator_data', JSON.stringify(dataToSave));
-            if (notify) showNotification('현재 시뮬레이션 세팅이 브라우저에 저장되었습니다!');
+            if (notify) showNotification('현재 시뮬레이션 세팅이 저장되었습니다!');
         }
 
         function loadSavedData() {
@@ -1403,7 +1483,7 @@
             updateGlobalSettingsUI();
             recalculateAndRender();
 
-            // Initialize Supabase Database Connection
+            // Initialize Background Sync
             initSupabaseSync();
         };
 
